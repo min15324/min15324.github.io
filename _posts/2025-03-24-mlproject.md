@@ -5,7 +5,7 @@ title: 캐글의 Titanic - Machine Learning from Disaster Competition 참여하�
 
 Kaggle의 타이타닉 데이터셋을 활용한 생존자 예측 모델 만들기에 도전해 보고자 한다.
 
-넘파이, 판다스, 사이킷런 등을 활용해야 한다.
+파이썬의 넘파이, 판다스, 사이킷런 등을 활용하여 머신러닝을 진행할 것이다.
 
 
 ```python
@@ -377,6 +377,10 @@ train.info()
 
 
 
+우선 생존 유무에 특별한 영향을 주지 않는다고 판단되는 특성을 제거할 것이다.
+특성 Ticket에는 구매한 티켓의 번호 정보가 있다. 티켓 번호에 따라 객실 위치나 등급이 다르다면 생존 결과에 영향이 있을 수 있지만, 데이터 상의 티켓 번호들은 형태가 서로 다른 것이 많아 판단이 너무 어려울 것 같다. 따라서 Ticket 특성은 삭제할 것이다.
+
+
 ```python
 train["Ticket"]
 ```
@@ -457,14 +461,9 @@ train["Ticket"]
 
 
 
-생존 유무에 특별한 영향을 주지 않는다고 판단되는 특성을 제거한다.
+또한 승선 장소를 나타내는 Embarked, 승객 번호인 PassengerId, 이름인 Name은 승객을 분류하는 데는 유용하지만 생존 확률을 계산하는 데에는 부적절해 보이기에 삭제한다. 다만 PassengerId의 경우 제출할 csv 파일에 필요하므로 따로 저장해 둔다.
 
-승선 장소인 Embarked, 승객 번호인 PassengerId, 이름인 Name은 승객을 분류하는 데는 유용하지만 생존 확률을 계산하는 데에는 부적절해 보인다. 다만 PassengerId의 경우 제출할 csv 파일에 필요하므로 따로 저장해 둔다.
 
-Ticket의 구매한 티켓의 번호 정보가 있다. 티켓 번호에 따라 객실 위치나 등급이 다르다면 생존 결과에 영향이 있을 수 있지만 그런 상관관계가 있는지 알아내기 어렵고 티켓마다 번호의 유형이 달라 학습에 부적절하다고 판단된다.
-
-Cabin은 객실 번호의 정보를 가지고 있다.
-객실 번호에 따라 객실의 위치도 다를 것이고 객실의 위치에 따라 대피 난이도도 달랐을 것이다. 중요하게 활용할 수 있는 특성이지만 결측치가 너무 많다. 적절한 값으로 대체한다 하더라도 그 양이 너무 커 데이터에 영향을 줄 수 있으므로 특성을 삭제하는 것이 나아 보인다.
 
 
 ```python
@@ -548,12 +547,21 @@ PassengerId
 
 
 
+마지막으로 삭제할 특성인 Cabin은 객실 번호의 정보를 가지고 있다.
+객실 번호에 따라 객실의 위치도 다를 것이고 객실의 위치에 따라 대피 난이도도 달랐을 것이다. 중요하게 활용할 수 있는 특성이지만 결측치가 너무 많다. 적절한 값으로 대체한다 하더라도 그 양이 너무 커 데이터에 영향을 줄 수 있으므로 특성을 삭제하는 것이 나아 보인다.
+삭제하기로 결정한 모든 특성을 훈련 셋과 테스트 셋 모두에서 제거해 준다.
+
+
 
 ```python
 columns_to_drop = ['Embarked', 'Name', 'Ticket', 'Cabin', 'PassengerId']
 train.drop(columns_to_drop, axis=1, inplace=True)
 test.drop(columns_to_drop, axis=1, inplace=True)
 ```
+
+
+변경된 데이터 셋을 확인한다.
+
 
 
 ```python
@@ -1383,8 +1391,9 @@ test
 
 
 
-본격적인 데이터 전처리에 들어간다.
+이제부터는 데이터 전처리를 위한 파이프라인 생성을 해야 한다. 데이터에 어떤 전처리를 해야 할지부터 정해야 한다.
 훈련 셋의 경우 Age 특성에, 테스트 셋의 경우 Age와 Fare에 결측치가 존재한다.
+
 
 
 ```python
@@ -1446,7 +1455,7 @@ train.hist(bins=50, figsize=(12, 8))
 
 
     
-![png](Untitled1_files/Untitled1_20_1.png)
+![png](assets/images/hist_image.png)
     
 
 
@@ -1504,6 +1513,22 @@ train['Fare'].median()
 
 
 
+
+입력 데이터셋과 타깃 데이터셋을 분리한다.
+
+
+```python
+train_target = train['Survived']
+train_data = train.drop('Survived', axis=1)
+```
+
+
+
+전처리 과정을 파이프라인으로 만들 것이다. 우선 필요한 API를 불러온다.
+
+
+
+
 ```python
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
@@ -1514,16 +1539,10 @@ from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector
 ```
 
-입력 데이터셋과 타깃 데이터셋을 분리한다.
 
 
-```python
-train_target = train['Survived']
-train_data = train.drop('Survived', axis=1)
-```
-
-전처리 과정을 파이프라인으로 정의한다.
-기본적으로 수치형 특성에는 결측치 처리와 표준화 스케일링만 적용하지만, Parch, SibSp, Fare같이 정규분포를 따르지 않는 특성들은 로그 변환을 추가로 한다.
+파이프라인을 만든다.
+기본적으로 수치형 특성에는 결측치 처리와 표준화 스케일링만 적용하지만, Parch, SibSp, Fare같이 분포가 한쪽으로 크게 편향된 특성에는 로그 변환을 추가로 한다. 값 중 0이 존재해 np.log()를 사용하면 오류가 발생하니 np.log1p()를 사용한다.
 Sex의 경우 원 핫 인코딩을 통해 수치형 특성으로 변환한다.
 
 
@@ -1550,7 +1569,9 @@ preprocessing = ColumnTransformer([
         ], remainder=num_pipeline)
 ```
 
-완성된 전처리 과정을 사용해 여러 회귀 모델에 적용해 본다. 사용할 모델은 선형 회귀 모델, 결정 트리 회귀 모델, 랜덤 포레스트 회귀 모델이다.
+
+완성된 전처리 과정을 사용해 여러 모델에 적용하여 예측값을 확인해 본다. 사용할 모델은 선형 회귀 모델, 결정 트리 회귀 모델, 랜덤 포레스트 회귀 모델이다.
+
 
 
 ```python
@@ -2988,7 +3009,7 @@ tree_rmse
 
 
 
-결정 트리 모델의 RMSE는 선형 회귀 모델보다 낮게 나온다.
+결정 트리 모델의 RMSE는 선형 회귀 모델보다 상당히 낮게 나온다. 모델이 훈련 데이터에 대해 과대 적합 현상을 보이는 것으로 생각해볼 수 있다.
 
 
 ```python
@@ -3689,7 +3710,7 @@ forest_rmse
 
 
 
-전체적으로 RMSE가 너무 낮아 과대 적합 현상이 있는 듯하다. 교차 검증으로 모델 간 성능 차이를 더 확실히 구분해 본다.
+교차 검증으로 모델 간 성능 차이를 더 확실히 구분해 본다.
 
 
 ```python
@@ -4707,206 +4728,17 @@ final_submission
 
 
 
+완성된 파일을 csv 파일로 내보내 캐글 사이트에 업로드해 본다.
+
 
 ```python
 final_submission.to_csv("/content/drive/MyDrive/Colab Notebooks/Files/final_submission.csv", index = False)
 ```
 
+![png](assets/images/result_image.png)
 
-```python
-!jupyter nbconvert --to markdown "/content/drive/MyDrive/Colab Notebooks/Untitled1.ipynb"
-```
 
-    [NbConvertApp] WARNING | pattern '/content/drive/MyDrive/Colab Notebooks/Untitled1.ipynb' matched no files
-    This application is used to convert notebook files (*.ipynb)
-            to various other formats.
-    
-            WARNING: THE COMMANDLINE INTERFACE MAY CHANGE IN FUTURE RELEASES.
-    
-    Options
-    =======
-    The options below are convenience aliases to configurable class-options,
-    as listed in the "Equivalent to" description-line of the aliases.
-    To see all configurable class-options for some <cmd>, use:
-        <cmd> --help-all
-    
-    --debug
-        set log level to logging.DEBUG (maximize logging output)
-        Equivalent to: [--Application.log_level=10]
-    --show-config
-        Show the application's configuration (human-readable format)
-        Equivalent to: [--Application.show_config=True]
-    --show-config-json
-        Show the application's configuration (json format)
-        Equivalent to: [--Application.show_config_json=True]
-    --generate-config
-        generate default config file
-        Equivalent to: [--JupyterApp.generate_config=True]
-    -y
-        Answer yes to any questions instead of prompting.
-        Equivalent to: [--JupyterApp.answer_yes=True]
-    --execute
-        Execute the notebook prior to export.
-        Equivalent to: [--ExecutePreprocessor.enabled=True]
-    --allow-errors
-        Continue notebook execution even if one of the cells throws an error and include the error message in the cell output (the default behaviour is to abort conversion). This flag is only relevant if '--execute' was specified, too.
-        Equivalent to: [--ExecutePreprocessor.allow_errors=True]
-    --stdin
-        read a single notebook file from stdin. Write the resulting notebook with default basename 'notebook.*'
-        Equivalent to: [--NbConvertApp.from_stdin=True]
-    --stdout
-        Write notebook output to stdout instead of files.
-        Equivalent to: [--NbConvertApp.writer_class=StdoutWriter]
-    --inplace
-        Run nbconvert in place, overwriting the existing notebook (only
-                relevant when converting to notebook format)
-        Equivalent to: [--NbConvertApp.use_output_suffix=False --NbConvertApp.export_format=notebook --FilesWriter.build_directory=]
-    --clear-output
-        Clear output of current file and save in place,
-                overwriting the existing notebook.
-        Equivalent to: [--NbConvertApp.use_output_suffix=False --NbConvertApp.export_format=notebook --FilesWriter.build_directory= --ClearOutputPreprocessor.enabled=True]
-    --coalesce-streams
-        Coalesce consecutive stdout and stderr outputs into one stream (within each cell).
-        Equivalent to: [--NbConvertApp.use_output_suffix=False --NbConvertApp.export_format=notebook --FilesWriter.build_directory= --CoalesceStreamsPreprocessor.enabled=True]
-    --no-prompt
-        Exclude input and output prompts from converted document.
-        Equivalent to: [--TemplateExporter.exclude_input_prompt=True --TemplateExporter.exclude_output_prompt=True]
-    --no-input
-        Exclude input cells and output prompts from converted document.
-                This mode is ideal for generating code-free reports.
-        Equivalent to: [--TemplateExporter.exclude_output_prompt=True --TemplateExporter.exclude_input=True --TemplateExporter.exclude_input_prompt=True]
-    --allow-chromium-download
-        Whether to allow downloading chromium if no suitable version is found on the system.
-        Equivalent to: [--WebPDFExporter.allow_chromium_download=True]
-    --disable-chromium-sandbox
-        Disable chromium security sandbox when converting to PDF..
-        Equivalent to: [--WebPDFExporter.disable_sandbox=True]
-    --show-input
-        Shows code input. This flag is only useful for dejavu users.
-        Equivalent to: [--TemplateExporter.exclude_input=False]
-    --embed-images
-        Embed the images as base64 dataurls in the output. This flag is only useful for the HTML/WebPDF/Slides exports.
-        Equivalent to: [--HTMLExporter.embed_images=True]
-    --sanitize-html
-        Whether the HTML in Markdown cells and cell outputs should be sanitized..
-        Equivalent to: [--HTMLExporter.sanitize_html=True]
-    --log-level=<Enum>
-        Set the log level by value or name.
-        Choices: any of [0, 10, 20, 30, 40, 50, 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL']
-        Default: 30
-        Equivalent to: [--Application.log_level]
-    --config=<Unicode>
-        Full path of a config file.
-        Default: ''
-        Equivalent to: [--JupyterApp.config_file]
-    --to=<Unicode>
-        The export format to be used, either one of the built-in formats
-                ['asciidoc', 'custom', 'html', 'latex', 'markdown', 'notebook', 'pdf', 'python', 'qtpdf', 'qtpng', 'rst', 'script', 'slides', 'webpdf']
-                or a dotted object name that represents the import path for an
-                ``Exporter`` class
-        Default: ''
-        Equivalent to: [--NbConvertApp.export_format]
-    --template=<Unicode>
-        Name of the template to use
-        Default: ''
-        Equivalent to: [--TemplateExporter.template_name]
-    --template-file=<Unicode>
-        Name of the template file to use
-        Default: None
-        Equivalent to: [--TemplateExporter.template_file]
-    --theme=<Unicode>
-        Template specific theme(e.g. the name of a JupyterLab CSS theme distributed
-        as prebuilt extension for the lab template)
-        Default: 'light'
-        Equivalent to: [--HTMLExporter.theme]
-    --sanitize_html=<Bool>
-        Whether the HTML in Markdown cells and cell outputs should be sanitized.This
-        should be set to True by nbviewer or similar tools.
-        Default: False
-        Equivalent to: [--HTMLExporter.sanitize_html]
-    --writer=<DottedObjectName>
-        Writer class used to write the
-                                            results of the conversion
-        Default: 'FilesWriter'
-        Equivalent to: [--NbConvertApp.writer_class]
-    --post=<DottedOrNone>
-        PostProcessor class used to write the
-                                            results of the conversion
-        Default: ''
-        Equivalent to: [--NbConvertApp.postprocessor_class]
-    --output=<Unicode>
-        Overwrite base name use for output files.
-                    Supports pattern replacements '{notebook_name}'.
-        Default: '{notebook_name}'
-        Equivalent to: [--NbConvertApp.output_base]
-    --output-dir=<Unicode>
-        Directory to write output(s) to. Defaults
-                                      to output to the directory of each notebook. To recover
-                                      previous default behaviour (outputting to the current
-                                      working directory) use . as the flag value.
-        Default: ''
-        Equivalent to: [--FilesWriter.build_directory]
-    --reveal-prefix=<Unicode>
-        The URL prefix for reveal.js (version 3.x).
-                This defaults to the reveal CDN, but can be any url pointing to a copy
-                of reveal.js.
-                For speaker notes to work, this must be a relative path to a local
-                copy of reveal.js: e.g., "reveal.js".
-                If a relative path is given, it must be a subdirectory of the
-                current directory (from which the server is run).
-                See the usage documentation
-                (https://nbconvert.readthedocs.io/en/latest/usage.html#reveal-js-html-slideshow)
-                for more details.
-        Default: ''
-        Equivalent to: [--SlidesExporter.reveal_url_prefix]
-    --nbformat=<Enum>
-        The nbformat version to write.
-                Use this to downgrade notebooks.
-        Choices: any of [1, 2, 3, 4]
-        Default: 4
-        Equivalent to: [--NotebookExporter.nbformat_version]
-    
-    Examples
-    --------
-    
-        The simplest way to use nbconvert is
-    
-                > jupyter nbconvert mynotebook.ipynb --to html
-    
-                Options include ['asciidoc', 'custom', 'html', 'latex', 'markdown', 'notebook', 'pdf', 'python', 'qtpdf', 'qtpng', 'rst', 'script', 'slides', 'webpdf'].
-    
-                > jupyter nbconvert --to latex mynotebook.ipynb
-    
-                Both HTML and LaTeX support multiple output templates. LaTeX includes
-                'base', 'article' and 'report'.  HTML includes 'basic', 'lab' and
-                'classic'. You can specify the flavor of the format used.
-    
-                > jupyter nbconvert --to html --template lab mynotebook.ipynb
-    
-                You can also pipe the output to stdout, rather than a file
-    
-                > jupyter nbconvert mynotebook.ipynb --stdout
-    
-                PDF is generated via latex
-    
-                > jupyter nbconvert mynotebook.ipynb --to pdf
-    
-                You can get (and serve) a Reveal.js-powered slideshow
-    
-                > jupyter nbconvert myslides.ipynb --to slides --post serve
-    
-                Multiple notebooks can be given at the command line in a couple of
-                different ways:
-    
-                > jupyter nbconvert notebook*.ipynb
-                > jupyter nbconvert notebook1.ipynb notebook2.ipynb
-    
-                or you can specify the notebooks list in a config file, containing::
-    
-                    c.NbConvertApp.notebooks = ["my_notebook.ipynb"]
-    
-                > jupyter nbconvert --config mycfg.py
-    
-    To see all available configurables, use `--help-all`.
-    
+위쪽은 모델이 1로 예측한 값만을 남긴 결과에 대한 점수이고, 아래쪽이 0.9 이상의 값을 1로 친 결과의 점수이다. 최대 점수는 1.0로 평가된다.
+복잡한 과정을 거치지 않고 간단하게 만들어낸 예측 결과라는 것을 생각하면 꽤 높은 점수가 나온 것 같다.
 
+기존에 있는 특성을 활용하여 새 특성을 만들어 내거나, 미세 조정을 통해 모델의 성능을 높이는 과정을 거치면 더 높은 점수를 받는 것도 가능할 것이다.
