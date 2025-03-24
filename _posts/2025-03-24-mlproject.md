@@ -1,3 +1,8 @@
+---
+layout: single
+title: 캐글의 Titanic - Machine Learning from Disaster Competition 참여하기
+---
+
 Kaggle의 타이타닉 데이터셋을 활용한 생존자 예측 모델 만들기에 도전해 보고자 한다.
 
 넘파이, 판다스, 사이킷런 등을 활용해야 한다.
