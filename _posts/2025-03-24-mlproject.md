@@ -1462,6 +1462,7 @@ train.hist(bins=50, figsize=(12, 8))
 
     
 ![png1](assets/images/hist_image.png)
+<img src="assets/images/hist_image.png" width="50%" height="50%">
     
 
 
@@ -4742,6 +4743,7 @@ final_submission.to_csv("/content/drive/MyDrive/Colab Notebooks/Files/final_subm
 ```
 
 ![png2](assets/images/result_image.png)
+<img src="assets/images/result_image.png" width="50%" height="50%">
 
 
 위쪽은 모델이 1로 예측한 값만을 남긴 결과에 대한 점수이고, 아래쪽이 0.9 이상의 값을 1로 친 결과의 점수이다. 최대 점수는 1.0로 평가된다.
